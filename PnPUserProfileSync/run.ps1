@@ -23,6 +23,7 @@ $ClientSecret = $env:ClientSecret
 if ($null -eq $ClientSecret) { throw "Missing ClientSecret env var" }
 $INCATTRS = $env:INCATTRS       # should be comma separated string of extensionAttribute1=UserProfileAttrName pairs. e.g. extensionAttribute1=Pronouns,extensionAttribute2=WorkingHours
 if ($null -eq $INCATTRS) { throw "Missing INCATTRS env var" }
+$DebugPrint = [System.Convert]::ToBoolean($env:DebugPrint)
 
 
 $tokenConnection = Connect-PnPOnline -Tenant $Tenant -Url $Url -ClientId $AzureClientId -CertificateBase64Encoded $CertificateBase64Encoded -ReturnConnection
@@ -46,7 +47,7 @@ function Invoke-Graph{
     }
 
     $res = Invoke-RestMethod -Headers @{Authorization = "Bearer $accesstoken" } -Uri $graphUri -Method $Method -Body $Body -ContentType 'application/json'
-    Write-Host $res
+    if ($DebugPrint) { Write-Host $res }
     Write-Output $res
 }
 
@@ -78,7 +79,7 @@ $aadUsers = (Invoke-Graph -Uri 'users?$select=id,userPrincipalName,onPremisesExt
 do{
     foreach ($aadUser in $aadUsers.value){
         if ($aadUser.UserPrincipalName.Contains("#EXT#@")) { continue }
-        Write-Host "Checking $($aadUser.UserPrincipalName)"
+        if ($DebugPrint) { Write-Host "Checking $($aadUser.UserPrincipalName)" }
         $pnpUser = Get-PnPUserProfileProperty -Account $aadUser.UserPrincipalName -Connection $pnpConnection
         $body = @{onPremisesExtensionAttributes = @{}}
         foreach ($pair in $attrs) {
@@ -86,20 +87,19 @@ do{
           $pnpAttr = $pair[1]
           $aadValue = $aadUser.onPremisesExtensionAttributes."$extAttr"
           $pnpValue = $pnpUser.UserProfileProperties."$pnpAttr"
-          Write-Host "aad: $aadValue pnp: $pnpValue"
+          if ($DebugPrint) { Write-Host "aad: $aadValue pnp: $pnpValue" }
           if($pnpValue -eq '') {$pnpValue = $null}
           if($aadValue -ne $pnpValue){
               $body["onPremisesExtensionAttributes"]["$extAttr"] = $pnpValue
           }
         }
         if ($body["onPremisesExtensionAttributes"].count -gt 0) {
-          Write-Host "... Updating"
+            if ($DebugPrint) { Write-Host "... Updating" }
           Invoke-Graph -Uri "users/$($aadUser.id)" -Method PATCH -Body (ConvertTo-Json $body -Depth 3)
         }
     }
     if($null -ne $aadUsers.'@odata.nextLink') { $aadUsers = Invoke-Graph -Uri $aadUsers.'@odata.nextLink' -Method GET }
 } while ($null -ne $aadUsers.'@odata.nextLink')
-
 
 # Get the current universal time in the default string format
 $currentUTCtime = (Get-Date).ToUniversalTime()
