@@ -3,6 +3,7 @@
  Runs a sync to update Azure AD attributes with the corresponding value from the SharePoint/Delve user profile.
  Based heavily upon https://github.com/merill/m365-gender-pronoun-kit
 #>
+$ErrorActionPreference = 'Stop'
 
 # Input bindings are passed in via param block.
 param($Timer)
