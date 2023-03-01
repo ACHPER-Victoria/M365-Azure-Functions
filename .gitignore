@@ -4,6 +4,7 @@ bin
 obj
 appsettings.json
 local.settings.json
+local.env.ps1
 
 # Azurite artifacts
 __blobstorage__
